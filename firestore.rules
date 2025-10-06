@@ -1,0 +1,166 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    function hasRole(role) {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+    }
+    
+    function isAdmin() {
+      return hasRole('admin') || hasRole('super_admin');
+    }
+    
+    function isModerator() {
+      return isAdmin() || hasRole('moderator');
+    }
+    
+    function isActive() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isActive == true;
+    }
+    
+    function isParentOfChild(childId) {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/users/$(childId)).data.parentId == request.auth.uid;
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      // Users can read their own data
+      allow read: if isOwner(userId);
+      
+      // Users can create their own profile
+      allow create: if isOwner(userId) && 
+                       request.resource.data.keys().hasAll(['email', 'role', 'createdAt', 'updatedAt', 'isActive']) &&
+                       request.resource.data.role in ['user', 'parent', 'child'];
+      
+      // Users can update their own profile (except role and isActive)
+      allow update: if isOwner(userId) && 
+                       !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isActive']);
+      
+      // Admins can read all users
+      allow read: if isAdmin();
+      
+      // Admins can update user roles and status
+      allow update: if isAdmin() && 
+                       request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isActive']);
+      
+      // Parents can read their children's data
+      allow read: if isParentOfChild(userId);
+      
+      // Parents can update their children's data (except role and isActive)
+      allow update: if isParentOfChild(userId) && 
+                       !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isActive']);
+    }
+    
+    // Notifications collection
+    match /notifications/{notificationId} {
+      // Users can read notifications targeted to them
+      allow read: if isAuthenticated() && 
+                     (request.auth.uid in resource.data.targetUserIds || 
+                      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in resource.data.targetRoles);
+      
+      // Users can update their own notification read status
+      allow update: if isAuthenticated() && 
+                       request.auth.uid in resource.data.targetUserIds &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
+      
+      // Moderators can create notifications
+      allow create: if isModerator();
+      
+      // Admins can delete notifications
+      allow delete: if isAdmin();
+    }
+    
+    // Restaurants/Dining collection
+    match /restaurants/{restaurantId} {
+      // Everyone can read active restaurants
+      allow read: if resource.data.isActive == true;
+      
+      // Users can read restaurants they have access to
+      allow read: if isAuthenticated() && 
+                     (resource.data.allowedRoles == null || 
+                      resource.data.allowedRoles.size() == 0 ||
+                      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in resource.data.allowedRoles);
+      
+      // Moderators can create restaurants
+      allow create: if isModerator();
+      
+      // Moderators can update restaurants
+      allow update: if isModerator();
+      
+      // Admins can delete restaurants
+      allow delete: if isAdmin();
+    }
+    
+    // Reviews collection
+    match /reviews/{reviewId} {
+      // Users can read all reviews
+      allow read: if isAuthenticated();
+      
+      // Users can create reviews
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid;
+      
+      // Users can update their own reviews
+      allow update: if isAuthenticated() && 
+                       resource.data.userId == request.auth.uid;
+      
+      // Users can delete their own reviews
+      allow delete: if isAuthenticated() && 
+                       resource.data.userId == request.auth.uid;
+      
+      // Moderators can delete any review
+      allow delete: if isModerator();
+    }
+    
+    // Orders collection
+    match /orders/{orderId} {
+      // Users can read their own orders
+      allow read: if isAuthenticated() && 
+                     resource.data.userId == request.auth.uid;
+      
+      // Users can create orders
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid;
+      
+      // Users can update their own orders (limited fields)
+      allow update: if isAuthenticated() && 
+                       resource.data.userId == request.auth.uid &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']);
+      
+      // Admins can read all orders
+      allow read: if isAdmin();
+      
+      // Admins can update order status
+      allow update: if isAdmin() && 
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']);
+    }
+    
+    // Analytics collection (admin only)
+    match /analytics/{document=**} {
+      allow read, write: if isAdmin();
+    }
+    
+    // Settings collection (admin only)
+    match /settings/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Default deny rule
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

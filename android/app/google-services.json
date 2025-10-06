@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "963296147693",
+    "project_id": "ezzat-flutter-task",
+    "storage_bucket": "ezzat-flutter-task.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:963296147693:android:115d107d6a109c82e974e4",
+        "android_client_info": {
+          "package_name": "com.example.fluttertask"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "963296147693-8dfm9e76tbut91l706rs9mmhkfhorlgg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.fluttertask",
+            "certificate_hash": "66a76fbe7c4a3efbf1914652ae08c440f2cffc4f"
+          }
+        },
+        {
+          "client_id": "963296147693-ib0h5jai3uh2bdkhuq47v5555f05suug.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD7znXcX9TohjrByWHBR8OjpMr2qsDETeg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "963296147693-ib0h5jai3uh2bdkhuq47v5555f05suug.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "963296147693-7o1f537v3v3seiup01pa28ghiesd0j2a.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.fluttertask"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

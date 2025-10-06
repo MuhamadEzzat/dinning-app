@@ -1,0 +1,122 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    function hasRole(role) {
+      return isAuthenticated() && 
+             firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == role;
+    }
+    
+    function isAdmin() {
+      return hasRole('admin') || hasRole('super_admin');
+    }
+    
+    function isModerator() {
+      return isAdmin() || hasRole('moderator');
+    }
+    
+    // User profile images
+    match /users/{userId}/profile/{fileName} {
+      // Users can read their own profile images
+      allow read: if isOwner(userId);
+      
+      // Users can upload their own profile images
+      allow write: if isOwner(userId) && 
+                      resource.size < 5 * 1024 * 1024 && // 5MB limit
+                      resource.contentType.matches('image/.*');
+      
+      // Users can delete their own profile images
+      allow delete: if isOwner(userId);
+    }
+    
+    // Restaurant images
+    match /restaurants/{restaurantId}/images/{fileName} {
+      // Everyone can read restaurant images
+      allow read: if true;
+      
+      // Moderators can upload restaurant images
+      allow write: if isModerator() && 
+                      resource.size < 10 * 1024 * 1024 && // 10MB limit
+                      resource.contentType.matches('image/.*');
+      
+      // Admins can delete restaurant images
+      allow delete: if isAdmin();
+    }
+    
+    // Review images
+    match /reviews/{reviewId}/images/{fileName} {
+      // Users can read review images
+      allow read: if isAuthenticated();
+      
+      // Users can upload images for their own reviews
+      allow write: if isAuthenticated() && 
+                      firestore.get(/databases/(default)/documents/reviews/$(reviewId)).data.userId == request.auth.uid &&
+                      resource.size < 5 * 1024 * 1024 && // 5MB limit
+                      resource.contentType.matches('image/.*');
+      
+      // Users can delete images from their own reviews
+      allow delete: if isAuthenticated() && 
+                       firestore.get(/databases/(default)/documents/reviews/$(reviewId)).data.userId == request.auth.uid;
+      
+      // Moderators can delete any review image
+      allow delete: if isModerator();
+    }
+    
+    // Notification images
+    match /notifications/{notificationId}/images/{fileName} {
+      // Users can read notification images
+      allow read: if isAuthenticated();
+      
+      // Moderators can upload notification images
+      allow write: if isModerator() && 
+                      resource.size < 5 * 1024 * 1024 && // 5MB limit
+                      resource.contentType.matches('image/.*');
+      
+      // Admins can delete notification images
+      allow delete: if isAdmin();
+    }
+    
+    // App assets (admin only)
+    match /assets/{fileName} {
+      // Everyone can read app assets
+      allow read: if true;
+      
+      // Only admins can upload app assets
+      allow write: if isAdmin() && 
+                      resource.size < 20 * 1024 * 1024 && // 20MB limit
+                      resource.contentType.matches('(image/.*|video/.*|audio/.*)');
+      
+      // Only admins can delete app assets
+      allow delete: if isAdmin();
+    }
+    
+    // Temporary uploads
+    match /temp/{userId}/{fileName} {
+      // Users can read their own temp files
+      allow read: if isOwner(userId);
+      
+      // Users can upload temp files
+      allow write: if isOwner(userId) && 
+                      resource.size < 10 * 1024 * 1024; // 10MB limit
+      
+      // Users can delete their own temp files
+      allow delete: if isOwner(userId);
+      
+      // Auto-delete temp files after 24 hours (handled by Cloud Functions)
+    }
+    
+    // Default deny rule
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
